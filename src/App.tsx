@@ -64,7 +64,7 @@ const App = () => {
       <TooltipProvider>
         <Toaster />
         <Sonner />
-        <BrowserRouter basename="/SkillSwap">
+        <BrowserRouter>
           <Routes>
             {/* Auth pages - redirect to home if already logged in */}
             <Route path="/" element={session ? <Navigate to="/home" replace /> : <Login />} />
