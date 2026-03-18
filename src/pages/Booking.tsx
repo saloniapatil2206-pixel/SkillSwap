@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { Clock, Video, X, Calendar, RefreshCw, Check, ChevronRight } from "lucide-react";
+import { Clock, Video, X, Calendar, RefreshCw, Check, ChevronRight, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,107 @@ const STATUS_BORDER: Record<string, string> = {
   Completed: "border-l-indigo-500",
   Cancelled: "border-l-red-500",
 };
+const ReviewModal = ({ booking, userId, onDone }: { booking: any; userId: string; onDone: () => void }) => {
+  const [open, setOpen] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
 
+  const handleSubmit = async () => {
+    if (!rating) return;
+    setSubmitting(true);
+    const { data: myProfile } = await supabase
+      .from("profiles").select("name").eq("id", userId).single();
+    const { error } = await supabase.from("reviews").insert({
+      reviewer_id: userId,
+      reviewee_id: booking.mentor_id,
+      booking_id: booking.id,
+      rating,
+      comment,
+      reviewer_name: myProfile?.name || "Anonymous",
+    });
+    setSubmitting(false);
+    if (!error) {
+      setSubmitted(true);
+      onDone();
+      setTimeout(() => {
+        setOpen(false);
+        setSubmitted(false);
+        setRating(0);
+        setComment("");
+      }, 2000);
+    } else {
+      console.error(error);
+      alert("Failed to submit: " + error.message);
+    }
+  };
+
+  return (
+    <>
+      <Button variant="outline" className="w-full h-11" onClick={() => setOpen(true)}>
+        ⭐ Leave a Review
+      </Button>
+      {open && (
+        <>
+          <div className="fixed inset-0 bg-black/70 z-[60]" onClick={() => setOpen(false)} />
+          <div className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-sm bg-card border border-border rounded-2xl z-[70] p-5">
+            {submitted ? (
+              <div className="text-center py-6">
+                <p className="text-5xl mb-3">⭐</p>
+                <p className="font-bold text-green-400 text-lg">Review Submitted!</p>
+                <p className="text-sm text-muted-foreground mt-1">Thank you for your feedback</p>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-bold text-base">Rate your session</h3>
+                  <button onClick={() => setOpen(false)}
+                    className="p-1.5 rounded-full hover:bg-accent/10">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <p className="text-sm text-muted-foreground mb-4">
+                  How was your session with{" "}
+                  <span className="text-foreground font-semibold">{booking.mentor_name}</span>?
+                </p>
+                {/* Stars */}
+                <div className="flex gap-3 justify-center mb-5">
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <button key={s} onClick={() => setRating(s)}>
+                      <Star className={`w-9 h-9 transition-all ${s <= rating
+                        ? "fill-yellow-500 text-yellow-500 scale-110"
+                        : "text-muted-foreground hover:text-yellow-400"
+                        }`} />
+                    </button>
+                  ))}
+                </div>
+                {rating > 0 && (
+                  <p className="text-center text-sm font-medium mb-4 text-yellow-400">
+                    {["", "Poor 😞", "Fair 😐", "Good 🙂", "Great 😊", "Excellent! 🌟"][rating]}
+                  </p>
+                )}
+                <textarea
+                  value={comment}
+                  onChange={(e) => setComment(e.target.value)}
+                  placeholder="Share your experience (optional)..."
+                  className="w-full bg-background border border-border rounded-xl p-3 text-sm resize-none h-24 outline-none focus:border-primary mb-4"
+                />
+                <Button
+                  className="w-full gradient-bg text-primary-foreground h-11"
+                  onClick={handleSubmit}
+                  disabled={!rating || submitting}
+                >
+                  {submitting ? "Submitting..." : `Submit ${rating > 0 ? "★".repeat(rating) : ""} Review`}
+                </Button>
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </>
+  );
+};
 const Booking = () => {
   const [userId, setUserId] = useState("");
   const [myBookings, setMyBookings] = useState<any[]>([]); // as learner
@@ -469,10 +569,12 @@ const Booking = () => {
                   </div>
                 )}
 
-                {selectedBooking.status === "Completed" && (
-                  <Button variant="outline" className="w-full h-11">
-                    ⭐ Leave a Review
-                  </Button>
+                {selectedBooking.status === "Completed" && activeTab === "my" && (
+                  <ReviewModal
+                    booking={selectedBooking}
+                    userId={userId}
+                    onDone={() => showToast("Review submitted! ⭐")}
+                  />
                 )}
               </div>
             </div>
